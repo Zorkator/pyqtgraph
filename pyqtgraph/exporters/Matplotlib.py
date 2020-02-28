@@ -1,5 +1,6 @@
 from ..Qt import QtGui, QtCore
 from .Exporter import Exporter
+from ..parametertree import Parameter, group, param
 from .. import PlotItem
 from .. import functions as fn
 
@@ -29,13 +30,25 @@ publication. Fonts are not vectorized (outlined), and window colors are white.
 """
     
 class MatplotlibExporter(Exporter):
-    Name = "Matplotlib Window"
+    Name    = "Matplotlib Window"
     windows = []
+
     def __init__(self, item):
         Exporter.__init__(self, item)
+        #tr = self.getTargetRect()
+        self.params = Parameter.makeGroup( 'params',
+                          group( 'marker',
+                              param( 'symbol', str,   value='o' ),
+                              param( 'size',   float, value=1.0 ),
+                              param( 'every' , int,   value=0, limits=(0,None) )),
+                          group( 'grid',
+                              param( 'show', bool, value=True ),
+                              param( 'color', 'color', value='k' ))
+                          )
         
     def parameters(self):
-        return None
+        return self.params
+
 
     def cleanAxes(self, axl):
         if type(axl) is not list:
