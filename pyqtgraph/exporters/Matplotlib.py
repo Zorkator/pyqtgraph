@@ -28,7 +28,7 @@ The advantage is that there is less to do to get an exported file cleaned and re
 publication. Fonts are not vectorized (outlined), and window colors are white.
 
 """
-    
+
 class MatplotlibExporter(Exporter):
     Name    = "Matplotlib Window"
     windows = []
@@ -45,12 +45,13 @@ class MatplotlibExporter(Exporter):
                               param( 'show', bool, value=True ),
                               param( 'color', 'color', value='k' ))
                           )
-        
+
     def parameters(self):
         return self.params
 
 
     def cleanAxes(self, axl):
+        axl.clear()
         if type(axl) is not list:
             axl = [axl]
         for ax in axl:
@@ -60,69 +61,68 @@ class MatplotlibExporter(Exporter):
                 if loc in ['left', 'bottom']:
                     pass
                 elif loc in ['right', 'top']:
-                    spine.set_color('none')
+                    spine.set_color('black')
                     # do not draw the spine
                 else:
                     raise ValueError('Unknown spine location: %s' % loc)
                 # turn off ticks when there is no spine
                 ax.xaxis.set_ticks_position('bottom')
-    
+
+
     def export(self, fileName=None):
-        
         if isinstance(self.item, PlotItem):
             mpw = MatplotlibWindow()
             MatplotlibExporter.windows.append(mpw)
 
-            stdFont = 'Arial'
-            
-            fig = mpw.getFigure()
-            
             # get labels from the graphic item
             xlabel = self.item.axes['bottom']['item'].label.toPlainText()
             ylabel = self.item.axes['left']['item'].label.toPlainText()
-            title = self.item.titleLabel.text
+            title  = self.item.titleLabel.text
 
-            ax = fig.add_subplot(111, title=title)
-            ax.clear()
-            self.cleanAxes(ax)
-            #ax.grid(True)
-            for item in self.item.curves:
-                x, y = item.getData()
-                opts = item.opts
-                pen = fn.mkPen(opts['pen'])
-                if pen.style() == QtCore.Qt.NoPen:
-                    linestyle = ''
-                else:
-                    linestyle = '-'
-                color = tuple([c/255. for c in fn.colorTuple(pen.color())])
-                symbol = opts['symbol']
-                if symbol == 't':
-                    symbol = '^'
-                symbolPen = fn.mkPen(opts['symbolPen'])
-                symbolBrush = fn.mkBrush(opts['symbolBrush'])
-                markeredgecolor = tuple([c/255. for c in fn.colorTuple(symbolPen.color())])
-                markerfacecolor = tuple([c/255. for c in fn.colorTuple(symbolBrush.color())])
-                markersize = opts['symbolSize']
-                
+            ax = mpw.getFigure().add_subplot( 111, title=title )
+            self.cleanAxes( ax )
+
+            if self.params['grid','show']:
+                ax.grid( linestyle=':', color=self.params['grid','color'].getRgbF() )
+
+            for curve in self.item.curves:
+                x, y = curve.getData()
+                opts = curve.opts
+                pen  = fn.mkPen( opts['pen'] )
+
+                plotOpts = dict(
+                    color     = pen.color().getRgbF(),
+                    linestyle = ('-','')[pen.style() == QtCore.Qt.NoPen],
+                    linewidth = pen.width() )
+
+                if self.params['marker','every']:
+                    symbol      = self.params['marker','symbol'] or opts['symbol']
+                    symbolPen   = fn.mkPen( opts['symbolPen'] )
+                    symbolBrush = fn.mkBrush( opts['symbolBrush'] )
+
+                    plotOpts.update(
+                        markeredgecolor = symbolPen.color().getRgbF(),
+                        markerfacecolor = symbolBrush.color().getRgbF(),
+                        markersize      = self.params['marker','size'] or opts['symbolSize'],
+                        markevery       = self.params['marker','every'],
+                        marker          = dict( t='^' ).get( symbol, symbol ) )
+
                 if opts['fillLevel'] is not None and opts['fillBrush'] is not None:
-                    fillBrush = fn.mkBrush(opts['fillBrush'])
-                    fillcolor = tuple([c/255. for c in fn.colorTuple(fillBrush.color())])
-                    ax.fill_between(x=x, y1=y, y2=opts['fillLevel'], facecolor=fillcolor)
-                
-                pl = ax.plot(x, y, marker=symbol, color=color, linewidth=pen.width(), 
-                        linestyle=linestyle, markeredgecolor=markeredgecolor, markerfacecolor=markerfacecolor,
-                        markersize=markersize)
+                    fillcolor = fn.mkBrush( opts['fillBrush'] ).color()
+                    ax.fill_between( x=x, y1=y, y2=opts['fillLevel'], facecolor=fillcolor.getRgbF() )
+
+                plot   = ax.plot( x, y, **plotOpts )
                 xr, yr = self.item.viewRange()
-                ax.set_xbound(*xr)
-                ax.set_ybound(*yr)
-            ax.set_xlabel(xlabel)  # place the labels.
-            ax.set_ylabel(ylabel)
+                ax.set_xbound( *xr )
+                ax.set_ybound( *yr )
+            ax.set_xlabel( xlabel )  # place the labels.
+            ax.set_ylabel( ylabel )
             mpw.draw()
         else:
             raise Exception("Matplotlib export currently only works with plot items")
-                
-MatplotlibExporter.register()        
-        
+
+MatplotlibExporter.register()
+
 
 class MatplotlibWindow(QtGui.QMainWindow):
     def __init__(self):
@@ -131,10 +131,10 @@ class MatplotlibWindow(QtGui.QMainWindow):
         self.mpl = MatplotlibWidget.MatplotlibWidget()
         self.setCentralWidget(self.mpl)
         self.show()
-        
+
     def __getattr__(self, attr):
         return getattr(self.mpl, attr)
-        
+
     def closeEvent(self, ev):
         MatplotlibExporter.windows.remove(self)
         self.deleteLater()

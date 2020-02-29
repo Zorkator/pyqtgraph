@@ -9,7 +9,7 @@ __all__ = ['ImageExporter']
 class ImageExporter(Exporter):
     Name = "Image File (PNG, TIF, JPG, ...)"
     allowCopy = True
-    
+
     def __init__(self, item):
         Exporter.__init__(self, item)
         tr = self.getTargetRect()
@@ -21,7 +21,7 @@ class ImageExporter(Exporter):
         bg = bgbrush.color()
         if bgbrush.style() == QtCore.Qt.NoBrush:
             bg.setAlpha(0)
-            
+
         self.params = Parameter(name='params', type='group', children=[
             {'name': 'width', 'type': 'int', 'value': int(tr.width()), 'limits': (0, None)},
             {'name': 'height', 'type': 'int', 'value': int(tr.height()), 'limits': (0, None)},
@@ -31,20 +31,20 @@ class ImageExporter(Exporter):
         ])
         self.params.param('width').sigValueChanged.connect(self.widthChanged)
         self.params.param('height').sigValueChanged.connect(self.heightChanged)
-        
+
     def widthChanged(self):
         sr = self.getSourceRect()
         ar = float(sr.height()) / sr.width()
         self.params.param('height').setValue(int(self.params['width'] * ar), blockSignal=self.heightChanged)
-        
+
     def heightChanged(self):
         sr = self.getSourceRect()
         ar = float(sr.width()) / sr.height()
         self.params.param('width').setValue(int(self.params['height'] * ar), blockSignal=self.widthChanged)
-        
+
     def parameters(self):
         return self.params
-    
+
     def export(self, fileName=None, toBytes=False, copy=False):
         if fileName is None and not toBytes and not copy:
             filter    = ["*."+f.data().decode('utf-8') for f in QtGui.QImageWriter.supportedImageFormats()]
@@ -74,13 +74,13 @@ class ImageExporter(Exporter):
 
         self.png = fn.makeQImage(bg, alpha=True, copy=False, transpose=False)
         self.bg = bg
-        
+
         ## set resolution of image:
         origTargetRect = self.getTargetRect()
         resolutionScale = targetRect.width() / origTargetRect.width()
         #self.png.setDotsPerMeterX(self.png.dotsPerMeterX() * resolutionScale)
         #self.png.setDotsPerMeterY(self.png.dotsPerMeterY() * resolutionScale)
-        
+
         painter = QtGui.QPainter(self.png)
         #dtr = painter.deviceTransform()
         try:
@@ -90,19 +90,19 @@ class ImageExporter(Exporter):
         finally:
             self.setExportMode(False)
         painter.end()
-        
+
         if self.params['invertValue']:
             mn = bg[...,:3].min(axis=2)
             mx = bg[...,:3].max(axis=2)
             d = (255 - mx) - mn
             bg[...,:3] += d[...,np.newaxis]
-        
+
         if copy:
             QtGui.QApplication.clipboard().setImage(self.png)
         elif toBytes:
             return self.png
         else:
             return self.png.save(fileName)
-        
-ImageExporter.register()        
-        
+
+ImageExporter.register()
+
