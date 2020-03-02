@@ -90,6 +90,9 @@ class ParameterItem(QtGui.QTreeWidgetItem):
             self._treeWidgetChanged( tree )
 
     def _treeWidgetChanged( self, tree ):
+        """For convenience, subclasses should implement this method instead of treeWidgetChanged.
+        It is called by treeWidgetChanged only if there is a valid treeWidget.
+        """
         pass
 
 
