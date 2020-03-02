@@ -1,6 +1,6 @@
 from ..Qt import QtGui, QtCore
 from .Exporter import Exporter
-from ..parametertree import Parameter, group, param
+from ..parametertree import group, param
 from .. import PlotItem
 from .. import functions as fn
 
@@ -30,62 +30,50 @@ publication. Fonts are not vectorized (outlined), and window colors are white.
 """
 
 class MatplotlibExporter(Exporter):
-    Name    = "Matplotlib Window"
-    windows = []
+    Name = "Matplotlib Window"
 
-    def __init__(self, item):
-        Exporter.__init__(self, item)
-        #tr = self.getTargetRect()
-        self.params = Parameter.makeGroup( 'params',
-                          group( 'marker',
-                              param( 'symbol', str,   value='o' ),
-                              param( 'size',   float, value=1.0 ),
-                              param( 'every' , int,   value=0, limits=(0,None) )),
-                          group( 'grid',
-                              param( 'show', bool, value=True ),
-                              param( 'color', 'color', value='k' ))
-                          )
-
-    def parameters(self):
-        return self.params
+    def __init__( self, item ):
+        super(MatplotlibExporter, self).__init__( item )
+        self.makeParameters( 'params',
+            group( 'marker',
+                param( 'symbol', str,   value='o' ),
+                param( 'size',   float, value=1.0 ),
+                param( 'every' , int,   value=0, limits=(0,None) )),
+            group( 'grid',
+                param( 'show',   bool,   value=True ),
+                param( 'spine',  bool,   value=True ),
+                param( 'color', 'color', value='k' ))
+            )
 
 
-    def cleanAxes(self, axl):
-        axl.clear()
-        if type(axl) is not list:
+    def _cleanAxes( self, axl, gridCol ):
+        if not isinstance( axl, list ):
             axl = [axl]
-        for ax in axl:
-            if ax is None:
-                continue
+
+        if self.parameters()['grid','spine']:
+            spineCol = gridCol
+        else:
+            spineCol = 'none'
+
+        for ax in filter( bool, axl ):
+            ax.clear()
             for loc, spine in ax.spines.items():
-                if loc in ['left', 'bottom']:
-                    pass
-                elif loc in ['right', 'top']:
-                    spine.set_color('black')
-                    # do not draw the spine
-                else:
-                    raise ValueError('Unknown spine location: %s' % loc)
-                # turn off ticks when there is no spine
-                ax.xaxis.set_ticks_position('bottom')
+                spine.set_color( spineCol )
 
 
-    def export(self, fileName=None):
-        if isinstance(self.item, PlotItem):
-            mpw = MatplotlibWindow()
-            MatplotlibExporter.windows.append(mpw)
+    def export( self, fileName=None) :
+        plot, params = self.item, self.parameters()
 
-            # get labels from the graphic item
-            xlabel = self.item.axes['bottom']['item'].label.toPlainText()
-            ylabel = self.item.axes['left']['item'].label.toPlainText()
-            title  = self.item.titleLabel.text
+        if isinstance( plot, PlotItem):
+            mplWin  = MatplotlibWindow()
+            mplPlot = mplWin.getFigure().add_subplot( 111 )
+            gridCol = params['grid','color'].getRgbF()
 
-            ax = mpw.getFigure().add_subplot( 111, title=title )
-            self.cleanAxes( ax )
+            self._cleanAxes( mplPlot, gridCol )
+            if params['grid','show']:
+                mplPlot.grid( linestyle=':', color=gridCol )
 
-            if self.params['grid','show']:
-                ax.grid( linestyle=':', color=self.params['grid','color'].getRgbF() )
-
-            for curve in self.item.curves:
+            for curve in plot.curves:
                 x, y = curve.getData()
                 opts = curve.opts
                 pen  = fn.mkPen( opts['pen'] )
@@ -95,29 +83,32 @@ class MatplotlibExporter(Exporter):
                     linestyle = ('-','')[pen.style() == QtCore.Qt.NoPen],
                     linewidth = pen.width() )
 
-                if self.params['marker','every']:
-                    symbol      = self.params['marker','symbol'] or opts['symbol']
+                if params['marker','every']:
+                    symbol      = params['marker','symbol'] or opts['symbol']
                     symbolPen   = fn.mkPen( opts['symbolPen'] )
                     symbolBrush = fn.mkBrush( opts['symbolBrush'] )
 
                     plotOpts.update(
                         markeredgecolor = symbolPen.color().getRgbF(),
                         markerfacecolor = symbolBrush.color().getRgbF(),
-                        markersize      = self.params['marker','size'] or opts['symbolSize'],
-                        markevery       = self.params['marker','every'],
+                        markersize      = params['marker','size'] or opts['symbolSize'],
+                        markevery       = params['marker','every'],
                         marker          = dict( t='^' ).get( symbol, symbol ) )
 
                 if opts['fillLevel'] is not None and opts['fillBrush'] is not None:
                     fillcolor = fn.mkBrush( opts['fillBrush'] ).color()
-                    ax.fill_between( x=x, y1=y, y2=opts['fillLevel'], facecolor=fillcolor.getRgbF() )
+                    mplPlot.fill_between( x=x, y1=y, y2=opts['fillLevel'], facecolor=fillcolor.getRgbF() )
 
-                plot   = ax.plot( x, y, **plotOpts )
-                xr, yr = self.item.viewRange()
-                ax.set_xbound( *xr )
-                ax.set_ybound( *yr )
-            ax.set_xlabel( xlabel )  # place the labels.
-            ax.set_ylabel( ylabel )
-            mpw.draw()
+                xr, yr  = plot.viewRange()
+                mplPlot.plot( x, y, **plotOpts )
+                mplPlot.set_xbound( *xr )
+                mplPlot.set_ybound( *yr )
+
+            # get labels from the graphic item
+            mplPlot.set_title( plot.titleLabel.text )
+            mplPlot.set_xlabel( plot.axes['bottom']['item'].label.toPlainText() ) #< attribute labelText misses units!
+            mplPlot.set_ylabel( plot.axes['left']['item'].label.toPlainText() )
+            mplWin.draw()
         else:
             raise Exception("Matplotlib export currently only works with plot items")
 
@@ -125,16 +116,20 @@ MatplotlibExporter.register()
 
 
 class MatplotlibWindow(QtGui.QMainWindow):
-    def __init__(self):
+    _instances = []
+
+    def __init__( self ):
         from ..widgets import MatplotlibWidget
-        QtGui.QMainWindow.__init__(self)
+        super(MatplotlibWindow, self).__init__()
         self.mpl = MatplotlibWidget.MatplotlibWidget()
         self.setCentralWidget(self.mpl)
         self.show()
+        type(self)._instances.append( self )
 
-    def __getattr__(self, attr):
-        return getattr(self.mpl, attr)
+    def __getattr__( self, attr ):
+        return getattr( self.mpl, attr )
 
-    def closeEvent(self, ev):
-        MatplotlibExporter.windows.remove(self)
+    def closeEvent( self, ev ):
+        self.__class__._instances.remove( self )
         self.deleteLater()
+
