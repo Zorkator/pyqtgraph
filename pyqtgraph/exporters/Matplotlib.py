@@ -35,10 +35,16 @@ class MatplotlibExporter(Exporter):
     def __init__( self, item ):
         super(MatplotlibExporter, self).__init__( item )
         self.makeParameters( 'params',
+            param( 'style file', file,  value='',  filter=['Style File (*.sty)', 'Text File (*.txt)', 'All Files (*.*)'] ),
+            param( 'dpi',        int,   value=100, limits=(10,1000) ),
+            param( 'size X',     float, value=5.0, limits=(1.0,100.0) ),
+            param( 'size Y',     float, value=4.0, limits=(1.0,100.0) ),
+            param( 'tight layout', bool, value=True ),
             group( 'marker',
-                param( 'symbol', str,   value='o' ),
-                param( 'size',   float, value=1.0 ),
-                param( 'every' , int,   value=0, limits=(0,None) )),
+                param( 'edgecolor', 'color', value='k' ),
+                param( 'symbol',     str,    value='o' ),
+                param( 'size',       int,    value=5, limits=(1,None) ),
+                param( 'every' ,     int,    value=0, limits=(0,None) )),
             group( 'grid',
                 param( 'show',   bool,   value=True ),
                 param( 'spine',  bool,   value=True ),
@@ -65,7 +71,7 @@ class MatplotlibExporter(Exporter):
         plot, params = self.item, self.parameters()
 
         if isinstance( plot, PlotItem):
-            mplWin  = MatplotlibWindow()
+            mplWin  = MatplotlibWindow( dpi=params['dpi'], size=(params['size X'], params['size Y'] ) )
             mplPlot = mplWin.getFigure().add_subplot( 111 )
             gridCol = params['grid','color'].getRgbF()
 
@@ -73,6 +79,7 @@ class MatplotlibExporter(Exporter):
             if params['grid','show']:
                 mplPlot.grid( linestyle=':', color=gridCol )
 
+            mplWin.loadStyle( params['style file'] )
             for curve in plot.curves:
                 x, y = curve.getData()
                 opts = curve.opts
@@ -89,8 +96,8 @@ class MatplotlibExporter(Exporter):
                     symbolBrush = fn.mkBrush( opts['symbolBrush'] )
 
                     plotOpts.update(
-                        markeredgecolor = symbolPen.color().getRgbF(),
-                        markerfacecolor = symbolBrush.color().getRgbF(),
+                        markeredgecolor = params['marker','edgecolor'].getRgbF(),
+                        markerfacecolor = pen.color().getRgbF(),
                         markersize      = params['marker','size'] or opts['symbolSize'],
                         markevery       = params['marker','every'],
                         marker          = dict( t='^' ).get( symbol, symbol ) )
@@ -108,6 +115,7 @@ class MatplotlibExporter(Exporter):
             mplPlot.set_title( plot.titleLabel.text )
             mplPlot.set_xlabel( plot.axes['bottom']['item'].label.toPlainText() ) #< attribute labelText misses units!
             mplPlot.set_ylabel( plot.axes['left']['item'].label.toPlainText() )
+            mplPlot.figure.set_tight_layout( params['tight layout'] )
             mplWin.draw()
         else:
             raise Exception("Matplotlib export currently only works with plot items")
@@ -118,10 +126,10 @@ MatplotlibExporter.register()
 class MatplotlibWindow(QtGui.QMainWindow):
     _instances = []
 
-    def __init__( self ):
+    def __init__( self, **kwArgs ):
         from ..widgets import MatplotlibWidget
         super(MatplotlibWindow, self).__init__()
-        self.mpl = MatplotlibWidget.MatplotlibWidget()
+        self.mpl = MatplotlibWidget.MatplotlibWidget( **kwArgs )
         self.setCentralWidget(self.mpl)
         self.show()
         type(self)._instances.append( self )
@@ -132,4 +140,11 @@ class MatplotlibWindow(QtGui.QMainWindow):
     def closeEvent( self, ev ):
         self.__class__._instances.remove( self )
         self.deleteLater()
+
+    def loadStyle( self, style ):
+        import matplotlib as mpl
+        if style:
+            mpl.style.use( style )
+        else:
+            mpl.rcParams.update( mpl.rcParamsDefault )
 
