@@ -4,6 +4,7 @@ from .Parameter import Parameter, registerParameterType
 from .ParameterItem import ParameterItem
 from ..widgets.SpinBox import SpinBox
 from ..widgets.ColorButton import ColorButton
+from ..widgets.FilePathEdit import FilePathEdit
 from ..colormap import ColorMap
 #from ..widgets.GradientWidget import GradientWidget ## creates import loop
 from .. import pixmaps as pixmaps
@@ -129,6 +130,12 @@ class WidgetParameterItem(ParameterItem):
             w.value = lambda: asUnicode(w.text())
             w.setValue = lambda v: w.setText(asUnicode(v))
             w.sigChanging = w.textChanged
+        elif t == 'file':
+            w = FilePathEdit( **opts )
+            w.sigChanged = w.editingFinished
+        elif t == 'dir':
+            w = FilePathEdit( selectDir=True, **opts )
+            w.sigChanged = w.editingFinished
         elif t == 'color':
             w = ColorButton()
             w.sigChanged = w.sigColorChanged
@@ -325,6 +332,8 @@ class SimpleParameter(Parameter):
             'str': asUnicode,
             'color': self._interpColor,
             'colormap': self._interpColormap,
+            'file': asUnicode,
+            'dir':  asUnicode,
         }[self.opts['type']]
         return fn(v)
 
@@ -344,6 +353,8 @@ registerParameterType('bool', SimpleParameter, override=True)
 registerParameterType('str', SimpleParameter, override=True)
 registerParameterType('color', SimpleParameter, override=True)
 registerParameterType('colormap', SimpleParameter, override=True)
+registerParameterType('file', SimpleParameter, override=True)
+registerParameterType('dir', SimpleParameter, override=True)
 
 
 
