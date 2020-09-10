@@ -124,17 +124,7 @@ class ExportDialog(QtGui.QWidget):
         expClass = self.exporterClasses[str(item.text())]
         exp = expClass(item=self.ui.itemTree.currentItem().gitem)
 
-        # if prev:
-        #     oldtext = str(prev.text())
-        #     self.exporterParameters[oldtext] = self.currentExporter.parameters()
-        #
-        # newtext = str(item.text())
-        # if newtext in self.exporterParameters.keys():
-        #     params = self.exporterParameters[newtext]
-        #     exp.params = params
-        # else:
         params = exp.parameters()
-        #     self.exporterParameters[newtext] = params
 
         if params is None:
             self.ui.paramTree.clear()

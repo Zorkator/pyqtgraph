@@ -44,11 +44,7 @@ class WidgetParameterItem(ParameterItem):
         w = self.makeWidget()
         self.widget = w
         self.eventProxy = EventProxy(w, self.widgetEventFilter)
-
-        opts = self.param.opts
-        if 'tip' in opts:
-            w.setToolTip(opts['tip'])
-
+        
         self.defaultBtn = QtGui.QPushButton()
         self.defaultBtn.setFixedWidth(20)
         self.defaultBtn.setFixedHeight(20)
@@ -72,8 +68,9 @@ class WidgetParameterItem(ParameterItem):
 
         if hasattr(w, 'sigChanging'):
             w.sigChanging.connect(self.widgetValueChanging)
-
-        ## update value shown in widget.
+            
+        ## update value shown in widget. 
+        opts = self.param.opts
         if opts.get('value', None) is not None:
             self.valueChanged(self, opts['value'], force=True)
         else:
@@ -81,6 +78,8 @@ class WidgetParameterItem(ParameterItem):
             self.widgetValueChanged()
 
         self.updateDefaultBtn()
+        
+        self.optsChanged(self.param, self.param.opts)
 
     def makeWidget(self):
         """
@@ -281,7 +280,10 @@ class WidgetParameterItem(ParameterItem):
             self.updateDefaultBtn()
             if isinstance(self.widget, (QtGui.QCheckBox,ColorButton)):
                 self.widget.setEnabled(not opts['readonly'])
-
+        
+        if 'tip' in opts:
+            self.widget.setToolTip(opts['tip'])
+        
         ## If widget is a SpinBox, pass options straight through
         if isinstance(self.widget, SpinBox):
             # send only options supported by spinbox
@@ -430,20 +432,26 @@ class GroupParameterItem(ParameterItem):
         self.param.addNew(typ)
         self.addWidget.setCurrentIndex(0)
 
-    def _treeWidgetChanged( self, tree ):
-        tree.setFirstItemColumnSpanned(self, True)
+    def treeWidgetChanged(self):
+        ParameterItem.treeWidgetChanged(self)
+        tw = self.treeWidget()
+        if tw is None:
+            return
+        tw.setFirstItemColumnSpanned(self, True)
         if self.addItem is not None:
-            tree.setItemWidget(self.addItem, 0, self.addWidgetBox)
-            tree.setFirstItemColumnSpanned(self.addItem, True)
-
+            tw.setItemWidget(self.addItem, 0, self.addWidgetBox)
+            tw.setFirstItemColumnSpanned(self.addItem, True)
+        
     def addChild(self, child):  ## make sure added childs are actually inserted before add btn
         if self.addItem is not None:
             ParameterItem.insertChild(self, self.childCount()-1, child)
         else:
             ParameterItem.addChild(self, child)
-
-    def optsChanged(self, param, changed):
-        if 'addList' in changed:
+            
+    def optsChanged(self, param, opts):
+        ParameterItem.optsChanged(self, param, opts)
+        
+        if 'addList' in opts:
             self.updateAddList()
 
     def updateAddList(self):
@@ -662,10 +670,17 @@ class TextParameterItem(WidgetParameterItem):
         ## TODO: fix so that superclass method can be called
         ## (WidgetParameter should just natively support this style)
         #WidgetParameterItem.treeWidgetChanged(self)
-        super(TextParameterItem, self)._treeWidgetChanged( tree )
-        tree.setFirstItemColumnSpanned(self.subItem, True)
-        tree.setItemWidget(self.subItem, 0, self.textBox)
+        tw = self.treeWidget()
+        if tw is None:
+            return
 
+        tw.setFirstItemColumnSpanned(self.subItem, True)
+        tw.setItemWidget(self.subItem, 0, self.textBox)
+        
+        # for now, these are copied from ParameterItem.treeWidgetChanged
+        self.setHidden(not self.param.opts.get('visible', True))
+        self.setExpanded(self.param.opts.get('expanded', True))
+        
     def makeWidget(self):
         self.textBox = QtGui.QTextEdit()
         self.textBox.setMaximumHeight(100)
